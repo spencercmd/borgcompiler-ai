@@ -22,9 +22,11 @@ app = modal.App("borgcompiler-backend")
 @app.function(
     image=image,
     gpu="A10G",
-    timeout=300,
+    timeout=120,
+    max_containers=2,  # hard cap: at most 2 GPU containers simultaneously
     secrets=[modal.Secret.from_name("borgcompiler-secrets")],
 )
+@modal.concurrent(max_inputs=1)  # one request per container (Dynamo isn't thread-safe)
 @modal.asgi_app()
 def fastapi_app():
     from main import app as _app  # noqa: PLC0415
