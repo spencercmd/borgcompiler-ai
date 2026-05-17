@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import Editor from "@monaco-editor/react";
 import { GraphView } from "./components/GraphView";
+import { BenchmarkPanel } from "./components/BenchmarkPanel";
 import type { Node, Edge } from "@xyflow/react";
 
 const DEFAULT_CODE = `def fn(x):
     return torch.softmax(x, dim=-1)
 
-# Provide example_inputs to see Dynamo + Lowered IR stages.
 example_inputs = [torch.randn(4, 4)]
 `;
 
@@ -15,11 +15,22 @@ interface GraphData {
   edges: Edge[];
 }
 
-type Stage = "after" | "lowered";
+type Stage = "after" | "lowered" | "perf";
+
+interface BenchmarkResult {
+  eager_ms: number;
+  compiled_ms: number;
+  compile_time_ms: number;
+  speedup: number;
+  backend: string;
+  eager_runs: number[];
+  compiled_runs: number[];
+}
 
 const STAGE_LABELS: Record<Stage, { label: string; desc: string }> = {
   after:   { label: "Dynamo Export",  desc: "Shape-specialized, canonicalized" },
   lowered: { label: "Lowered IR",     desc: "AOT decomposed — what Triton compiles" },
+  perf:    { label: "Performance",    desc: "Eager vs compiled latency" },
 };
 
 function toReactFlow(rawNodes: any[], rawEdges: any[]): GraphData {
@@ -46,9 +57,11 @@ export default function App() {
   const [before,  setBefore]  = useState<GraphData | null>(null);
   const [after,   setAfter]   = useState<GraphData | null>(null);
   const [lowered, setLowered] = useState<GraphData | null>(null);
+  const [benchResult, setBenchResult] = useState<BenchmarkResult | null>(null);
   const [stage, setStage]     = useState<Stage>("after");
   const [error,   setError]   = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [benchLoading, setBenchLoading] = useState(false);
   const [device,  setDevice]  = useState<string | null>(null);
 
   useEffect(() => {
@@ -77,7 +90,27 @@ export default function App() {
     }
   }
 
-  const stageData: Record<Stage, GraphData | null> = { after, lowered };
+  async function benchmark() {
+    setBenchLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API}/benchmark`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.detail ?? "Benchmark error"); return; }
+      setBenchResult(data);
+      setStage("perf");
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBenchLoading(false);
+    }
+  }
+
+  const stageData: Record<Exclude<Stage, "perf">, GraphData | null> = { after, lowered };
   const hasCompiled = after !== null || lowered !== null;
 
   return (
@@ -99,7 +132,6 @@ export default function App() {
       </header>
 
       <div style={styles.body}>
-        {/* ── Editor column ── */}
         <div style={styles.left}>
           <div style={styles.editorWrap}>
             <Editor
@@ -111,24 +143,31 @@ export default function App() {
               options={{ minimap: { enabled: false }, fontSize: 14 }}
             />
           </div>
-          <button
-            style={{ ...styles.button, opacity: loading ? 0.6 : 1 }}
-            onClick={compile}
-            disabled={loading}
-          >
-            {loading ? "Compiling…" : "▶ Compile"}
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              style={{ ...styles.button, flex: 1, opacity: loading ? 0.6 : 1 }}
+              onClick={compile}
+              disabled={loading}
+            >
+              {loading ? "Compiling…" : "▶ Compile"}
+            </button>
+            <button
+              style={{ ...styles.button, flex: 1, background: "#0f766e", opacity: benchLoading ? 0.6 : 1 }}
+              onClick={benchmark}
+              disabled={benchLoading}
+            >
+              {benchLoading ? "Benchmarking…" : "⚡ Benchmark"}
+            </button>
+          </div>
           {error && <div style={styles.error}>{error}</div>}
         </div>
 
-        {/* ── Graph panels ── */}
         {!before ? (
           <div style={{ ...styles.right, alignItems: "center", justifyContent: "center" }}>
             <div style={styles.placeholder}>Hit Compile to visualize the pipeline</div>
           </div>
         ) : (
           <div style={styles.right}>
-            {/* Left panel: FX trace — always the baseline */}
             <div style={styles.pane}>
               <div style={styles.paneLabel}>
                 <span style={styles.paneLabelTitle}>① FX Trace</span>
@@ -139,13 +178,12 @@ export default function App() {
 
             <div style={styles.divider} />
 
-            {/* Right panel: compiled stage with selector */}
             <div style={styles.pane}>
               <div style={styles.paneLabel}>
                 {hasCompiled ? (
                   <>
                     <div style={{ display: "flex", gap: 6 }}>
-                      {(Object.keys(STAGE_LABELS) as Stage[]).map(s => (
+                      {(Object.keys(STAGE_LABELS) as Stage[]).map((s, i) => (
                         <button
                           key={s}
                           onClick={() => setStage(s)}
@@ -155,7 +193,7 @@ export default function App() {
                             color: stage === s ? "#e2e8f0" : "#64748b",
                           }}
                         >
-                          {s === "after" ? "② Dynamo" : "③ Lowered IR"}
+                          {["② Dynamo", "③ Lowered IR", "④ Perf"][i]}
                         </button>
                       ))}
                     </div>
@@ -165,8 +203,18 @@ export default function App() {
                   <span style={styles.paneLabelDesc}>Add example_inputs to see compiled stages</span>
                 )}
               </div>
-              {stageData[stage] ? (
-                <GraphView key={stage} nodes={stageData[stage]!.nodes} edges={stageData[stage]!.edges} />
+              {stage === "perf" ? (
+                benchResult ? (
+                  <div style={{ flex: 1, overflow: "auto" }}>
+                    <BenchmarkPanel result={benchResult} />
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 13 }}>
+                    Click ⚡ Benchmark to measure eager vs compiled latency
+                  </div>
+                )
+              ) : stageData[stage as Exclude<Stage, "perf">] ? (
+                <GraphView key={stage} nodes={stageData[stage as Exclude<Stage, "perf">]!.nodes} edges={stageData[stage as Exclude<Stage, "perf">]!.edges} />
               ) : (
                 <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 13 }}>
                   No data for this stage

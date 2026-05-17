@@ -3,3 +3,5 @@ frontend/dist/
 __pycache__/
 *.pyc
 .env
+NOTES.md
+*CONTEXT*.md

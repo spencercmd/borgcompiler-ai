@@ -1,7 +1,0 @@
-Add Lowered IR stage (AOT Autograd decomposition)
-
-- compiler.py: lower_to_graph() using aot_autograd + Inductor decomp table
-- main.py: /compile returns {before, after, lowered}
-- App.tsx: three-stage pipeline view with tab selector
-- softmax decomposes to amax -> sub -> exp -> sum -> div at this stage
-- This is the exact IR that Triton's scheduler receives on GPU

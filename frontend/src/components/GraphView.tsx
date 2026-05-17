@@ -4,8 +4,6 @@ import "@xyflow/react/dist/style.css";
 import { applyLayout } from "../lib/layout";
 import { OpNode } from "./OpNode";
 
-// Registering a custom node type tells React Flow to use our component
-// instead of the default rectangle whenever node.type === "op".
 const nodeTypes = { op: OpNode };
 
 interface Props {
