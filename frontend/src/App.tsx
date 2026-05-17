@@ -51,6 +51,8 @@ function toReactFlow(rawNodes: any[], rawEdges: any[]): GraphData {
 }
 
 const API = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const API_KEY = import.meta.env.VITE_API_KEY ?? "";
+const AUTH = API_KEY ? { "x-api-key": API_KEY } : {};
 
 export default function App() {
   const [code, setCode] = useState(DEFAULT_CODE);
@@ -65,7 +67,7 @@ export default function App() {
   const [device,  setDevice]  = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API}/device`).then(r => r.json()).then(d => setDevice(d.device)).catch(() => {});
+    fetch(`${API}/device`, { headers: AUTH }).then(r => r.json()).then(d => setDevice(d.device)).catch(() => {});
   }, []);
 
   async function compile() {
@@ -74,7 +76,7 @@ export default function App() {
     try {
       const res = await fetch(`${API}/compile`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...AUTH },
         body: JSON.stringify({ code }),
       });
       const data = await res.json();
@@ -96,7 +98,7 @@ export default function App() {
     try {
       const res = await fetch(`${API}/benchmark`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...AUTH },
         body: JSON.stringify({ code }),
       });
       const data = await res.json();
