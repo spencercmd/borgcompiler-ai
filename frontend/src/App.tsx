@@ -117,7 +117,7 @@ export default function App() {
     <div style={styles.root}>
       <header style={styles.header}>
         <div>
-          <h1 style={styles.title}>LLM Compiler Explorer</h1>
+          <h1 style={styles.title}>BorgCompiler</h1>
           <p style={styles.subtitle}>Write a PyTorch function → trace the compilation pipeline</p>
         </div>
         {device && (
