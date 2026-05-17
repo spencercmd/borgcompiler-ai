@@ -51,8 +51,8 @@ function toReactFlow(rawNodes: any[], rawEdges: any[]): GraphData {
 }
 
 const API = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
-const API_KEY = import.meta.env.VITE_API_KEY ?? "";
-const AUTH = API_KEY ? { "x-api-key": API_KEY } : {};
+const API_KEY: string = import.meta.env.VITE_API_KEY ?? "";
+const AUTH: Record<string, string> = API_KEY ? { "x-api-key": API_KEY } : {};
 
 export default function App() {
   const [code, setCode] = useState(DEFAULT_CODE);
