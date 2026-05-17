@@ -1,0 +1,37 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount source so uvicorn --reload picks up changes without rebuilding.
+      - ./backend:/app
+      # Persist Triton's compiled kernel cache across container restarts.
+      - triton-cache:/root/.cache/triton
+    environment:
+      - PYTHONUNBUFFERED=1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            # Pass the NVIDIA GPU through to the container.
+            # Requires NVIDIA Container Toolkit on the host (Docker Desktop
+            # on Windows with WSL2 backend handles this automatically).
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      # Mount source for Vite HMR (hot module replacement).
+      # node_modules stays in the container via the anonymous volume below.
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+
+volumes:
+  triton-cache:

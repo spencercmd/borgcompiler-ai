@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Editor from "@monaco-editor/react";
 import { GraphView } from "./components/GraphView";
 import type { Node, Edge } from "@xyflow/react";
@@ -33,6 +33,8 @@ function toReactFlow(rawNodes: any[], rawEdges: any[]): GraphData {
   };
 }
 
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+
 export default function App() {
   const [code, setCode] = useState(DEFAULT_CODE);
   const [before, setBefore] = useState<GraphData | null>(null);
@@ -40,12 +42,18 @@ export default function App() {
   const [compare, setCompare] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [device, setDevice] = useState<string | null>(null);
+
+  // Fetch active compute device once on mount
+  useEffect(() => {
+    fetch(`${API}/device`).then(r => r.json()).then(d => setDevice(d.device)).catch(() => {});
+  }, []);
 
   async function compile() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("http://localhost:8000/compile", {
+      const res = await fetch(`${API}/compile`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code }),
@@ -78,14 +86,25 @@ export default function App() {
           <h1 style={styles.title}>LLM Compiler Explorer</h1>
           <p style={styles.subtitle}>Write a PyTorch function → see its computation graph</p>
         </div>
-        {canCompare && (
-          <button
-            style={{ ...styles.button, background: compare ? "#0ea5e9" : "#334155" }}
-            onClick={() => setCompare((c) => !c)}
-          >
-            {compare ? "◀ Single view" : "⇔ Compare"}
-          </button>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {device && (
+            <span style={{
+              padding: "4px 10px", borderRadius: 6, fontSize: 12, fontWeight: 600,
+              background: device === "cuda" ? "#14532d" : "#1e293b",
+              color: device === "cuda" ? "#4ade80" : "#64748b",
+            }}>
+              {device === "cuda" ? "GPU" : "CPU"}
+            </span>
+          )}
+          {canCompare && (
+            <button
+              style={{ ...styles.button, background: compare ? "#0ea5e9" : "#334155" }}
+              onClick={() => setCompare((c) => !c)}
+            >
+              {compare ? "◀ Single view" : "⇔ Compare"}
+            </button>
+          )}
+        </div>
       </header>
       <div style={styles.body}>
         <div style={styles.left}>

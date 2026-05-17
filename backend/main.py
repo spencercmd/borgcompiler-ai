@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from compiler import trace_to_graph, compile_to_graph
+from compiler import trace_to_graph, compile_to_graph, DEVICE
 
 app = FastAPI()
 
@@ -19,6 +19,11 @@ app.add_middleware(
 
 class CompileRequest(BaseModel):
     code: str  # raw Python source string from the editor
+
+
+@app.get("/device")
+def get_device():
+    return {"device": DEVICE}
 
 
 class CompileResponse(BaseModel):

@@ -1,0 +1,9 @@
+Add Docker support with NVIDIA/CUDA GPU passthrough
+
+- backend/Dockerfile: pytorch/pytorch:2.7.0-cuda12.8-cudnn9-devel base
+- frontend/Dockerfile: node:20-alpine with anonymous node_modules volume
+- docker-compose.yml: GPU device reservation, source mounts for hot reload
+- Triton kernel cache persisted as named volume
+- compiler.py: auto-detects CUDA, moves tensors to GPU when available
+- main.py: /device endpoint exposes active compute device
+- App.tsx: device badge shows CPU/GPU status, useEffect for device fetch

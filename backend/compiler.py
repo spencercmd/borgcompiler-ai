@@ -2,6 +2,10 @@ import torch
 import torch.fx as fx
 from typing import Any
 
+# Use GPU if available — Inductor generates Triton kernels on CUDA,
+# C++ AVX kernels on CPU. Both paths work; GPU gives richer output.
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
 
 def _collect_inputs(args: tuple) -> list[str]:
     """
@@ -64,12 +68,14 @@ def compile_to_graph(fn: callable, example_inputs: list[Any]) -> dict:
     Run fn through TorchDynamo's export to get the post-optimization graph.
     Requires real tensors in example_inputs so Dynamo can specialize shapes.
     """
-    # Reset Dynamo's cache so previous compilations don't interfere.
     torch._dynamo.reset()
 
-    # _dynamo.export() traces fn through Dynamo's full capture pipeline —
-    # constant folding, op canonicalization, decomposition — and returns
-    # an ExportResult whose .graph_module is the optimized FX graph.
-    # Unlike torch.export.export(), this accepts plain functions (not just nn.Module).
-    export_result = torch._dynamo.export(fn)(*example_inputs)
+    # Move example_inputs to the best available device so Dynamo specializes
+    # for the correct hardware and shape propagation reflects the real dtype.
+    inputs_on_device = [
+        t.to(DEVICE) if isinstance(t, torch.Tensor) else t
+        for t in example_inputs
+    ]
+
+    export_result = torch._dynamo.export(fn)(*inputs_on_device)
     return _graph_module_to_dict(export_result.graph_module)
