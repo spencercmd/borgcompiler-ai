@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from compiler import trace_to_graph, compile_to_graph, DEVICE
+from compiler import trace_to_graph, compile_to_graph, lower_to_graph, DEVICE
 
 app = FastAPI()
 
@@ -28,7 +28,8 @@ def get_device():
 
 class CompileResponse(BaseModel):
     before: dict
-    after: dict | None = None  # None when no example_inputs are provided
+    after: dict | None = None
+    lowered: dict | None = None  # AOT decomposed IR — what Triton would compile
 
 
 @app.post("/compile", response_model=CompileResponse)
@@ -60,4 +61,11 @@ def compile_graph(req: CompileRequest):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Compile error: {e}")
 
-    return {"before": before, "after": after}
+    lowered = None
+    if example_inputs is not None:
+        try:
+            lowered = lower_to_graph(fn, example_inputs)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Lower error: {e}")
+
+    return {"before": before, "after": after, "lowered": lowered}

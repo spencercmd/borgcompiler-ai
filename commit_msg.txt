@@ -1,7 +1,7 @@
-Add entrypoint for WSL2 CUDA driver detection
+Add Lowered IR stage (AOT Autograd decomposition)
 
-- entrypoint.sh: detects and preloads WSL2 CUDA driver at startup
-- Falls back to CPU silently if no WSL2 GPU found
-- docker-compose.yml: restore deploy.devices GPU reservation syntax
-- Note: PyTorch CUDA init fails on Docker Desktop WSL2 due to known
-  driver shim incompatibility; nvidia-smi works but torch.cuda does not
+- compiler.py: lower_to_graph() using aot_autograd + Inductor decomp table
+- main.py: /compile returns {before, after, lowered}
+- App.tsx: three-stage pipeline view with tab selector
+- softmax decomposes to amax -> sub -> exp -> sum -> div at this stage
+- This is the exact IR that Triton's scheduler receives on GPU

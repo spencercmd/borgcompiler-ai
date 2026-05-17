@@ -1,6 +1,8 @@
 import torch
 import torch.fx as fx
 from typing import Any
+from torch._dynamo.backends.common import aot_autograd
+from torch._inductor.decomposition import select_decomp_table
 
 # Use GPU if available — Inductor generates Triton kernels on CUDA,
 # C++ AVX kernels on CPU. Both paths work; GPU gives richer output.
@@ -61,6 +63,44 @@ def trace_to_graph(fn: callable, example_inputs: list[Any]) -> dict:
     """Symbolically trace fn (no real inputs needed) → {nodes, edges}."""
     gm: fx.GraphModule = fx.symbolic_trace(fn)
     return _graph_module_to_dict(gm)
+
+
+def lower_to_graph(fn: callable, example_inputs: list[Any]) -> dict:
+    """
+    Run fn through AOT Autograd with Inductor's decomposition table.
+
+    This is Stage 3: the IR that Triton's scheduler actually receives.
+    High-level ops like softmax, layer_norm, gelu are broken into the
+    primitive aten ops (exp, sum, div, etc.) that Inductor fuses into kernels.
+    """
+    torch._dynamo.reset()
+
+    captured: dict = {}
+
+    def fw_compiler(gm: fx.GraphModule, example_inputs):
+        # This callback fires after AOT Autograd has decomposed the graph.
+        # We capture it here, before any Inductor codegen runs.
+        captured["gm"] = gm
+        return gm  # return as-is — no actual compilation needed
+
+    backend = aot_autograd(
+        fw_compiler=fw_compiler,
+        decompositions=select_decomp_table(),
+    )
+
+    inputs_on_device = [
+        t.to(DEVICE) if isinstance(t, torch.Tensor) else t
+        for t in example_inputs
+    ]
+
+    torch._dynamo.reset()
+    compiled = torch.compile(fn, backend=backend, fullgraph=True)
+    compiled(*inputs_on_device)
+
+    if "gm" not in captured:
+        raise RuntimeError("AOT Autograd did not capture a forward graph.")
+
+    return _graph_module_to_dict(captured["gm"])
 
 
 def compile_to_graph(fn: callable, example_inputs: list[Any]) -> dict:
