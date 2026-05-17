@@ -10,13 +10,14 @@ services:
       - triton-cache:/root/.cache/triton
     environment:
       - PYTHONUNBUFFERED=1
+      # GPU passthrough: works when NVIDIA Container Runtime is properly
+      # configured in Docker Desktop (WSL2). Falls back to CPU silently.
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
     deploy:
       resources:
         reservations:
           devices:
-            # Pass the NVIDIA GPU through to the container.
-            # Requires NVIDIA Container Toolkit on the host (Docker Desktop
-            # on Windows with WSL2 backend handles this automatically).
             - driver: nvidia
               count: all
               capabilities: [gpu]

@@ -1,9 +1,7 @@
-Add Docker support with NVIDIA/CUDA GPU passthrough
+Add entrypoint for WSL2 CUDA driver detection
 
-- backend/Dockerfile: pytorch/pytorch:2.7.0-cuda12.8-cudnn9-devel base
-- frontend/Dockerfile: node:20-alpine with anonymous node_modules volume
-- docker-compose.yml: GPU device reservation, source mounts for hot reload
-- Triton kernel cache persisted as named volume
-- compiler.py: auto-detects CUDA, moves tensors to GPU when available
-- main.py: /device endpoint exposes active compute device
-- App.tsx: device badge shows CPU/GPU status, useEffect for device fetch
+- entrypoint.sh: detects and preloads WSL2 CUDA driver at startup
+- Falls back to CPU silently if no WSL2 GPU found
+- docker-compose.yml: restore deploy.devices GPU reservation syntax
+- Note: PyTorch CUDA init fails on Docker Desktop WSL2 due to known
+  driver shim incompatibility; nvidia-smi works but torch.cuda does not
