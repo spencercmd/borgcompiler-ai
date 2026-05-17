@@ -1,3 +1,4 @@
+import os
 import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,10 +8,15 @@ from compiler import trace_to_graph, compile_to_graph, lower_to_graph, benchmark
 
 app = FastAPI()
 
+# ALLOWED_ORIGINS: comma-separated list of allowed origins.
+# Defaults to localhost dev server; set to the Vercel frontend URL in production.
+_raw = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173")
+ALLOWED_ORIGINS = [o.strip() for o in _raw.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
-    allow_methods=["POST"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
